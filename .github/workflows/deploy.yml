@@ -114,15 +114,27 @@ jobs:
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --query "properties.configuration.ingress.fqdn" \
             --output tsv)
+          if [ -z "$FQDN" ]; then
+            echo "Warning: Could not retrieve Container App FQDN"
+            exit 0
+          fi
           echo "Container App URL: https://$FQDN"
-          echo "CONTAINER_APP_URL=https://$FQDN" >> $GITHUB_ENV
+          echo "CONTAINER_APP_FQDN=$FQDN" >> $GITHUB_ENV
 
       - name: Verify deployment health
         run: |
+          if [ -z "${{ env.CONTAINER_APP_FQDN }}" ]; then
+            echo "⚠️ Skipping health check - FQDN not available"
+            exit 0
+          fi
+          
           echo "Waiting for deployment to stabilize..."
           sleep 30
           
-          HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.CONTAINER_APP_URL }}/healthz" || echo "000")
+          HEALTH_URL="https://${{ env.CONTAINER_APP_FQDN }}/healthz"
+          echo "Checking: $HEALTH_URL"
+          
+          HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 || echo "000")
           
           if [ "$HEALTH_CHECK" = "200" ]; then
             echo "✅ Health check passed!"

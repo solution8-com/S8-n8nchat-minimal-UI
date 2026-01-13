@@ -44,6 +44,14 @@ async function initializeApp() {
     }
   });
 
+  // Features endpoint to check enabled auth methods
+  app.get('/auth/features', (req, res) => {
+    res.json({
+      ssoEnabled: !!(config.entra.tenantId && config.entra.clientId),
+      legacyLoginEnabled: config.legacy.enablePasswordLogin,
+    });
+  });
+
   // Initialize OIDC auth routes
   if (config.entra.tenantId && config.entra.clientId) {
     createAuthRoutes(app);
@@ -214,9 +222,11 @@ async function initializeApp() {
 
   // Start server
   const server = app.listen(config.port, () => {
-    console.log(`[SERVER] Listening on http://localhost:${config.port}`);
+    console.log(`[SERVER] Listening on port ${config.port}`);
     console.log(`[SERVER] Environment: ${config.nodeEnv}`);
-    console.log(`[SERVER] Base URL: ${config.baseUrl}`);
+    if (!config.isProduction) {
+      console.log(`[SERVER] Base URL: ${config.baseUrl}`);
+    }
   });
 
   // Graceful shutdown

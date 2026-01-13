@@ -210,18 +210,15 @@
   </main>
 
   <script>
-    // Check if legacy login is enabled
+    // Check if legacy login is enabled via features endpoint
     (async function checkLegacyLogin() {
       try {
-        // Try to POST to /login - if it returns 404, legacy is disabled
-        const res = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: '', password: '' })
-        });
-        // If we get a response (even 401), legacy login is enabled
-        if (res.status !== 404) {
-          document.getElementById('legacy-login').classList.add('show');
+        const res = await fetch('/auth/features');
+        if (res.ok) {
+          const features = await res.json();
+          if (features.legacyLoginEnabled) {
+            document.getElementById('legacy-login').classList.add('show');
+          }
         }
       } catch (err) {
         // If error, assume legacy is disabled
