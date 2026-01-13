@@ -91,6 +91,9 @@
       border-radius: 8px;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
+      display: block;
+      text-align: center;
     }
 
     .btn-primary {
@@ -98,11 +101,58 @@
       color: #fff;
     }
 
+    .btn-primary:hover {
+      background: var(--chat--color-primary-shade-50);
+    }
+
     .login-error {
       color: #b42318;
       font-size: 13px;
       margin-top: 8px;
       display: none;
+    }
+
+    /* SSO login section */
+    .sso-section {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e6e9ef;
+    }
+
+    .sso-section p {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    /* Legacy login section (hidden by default) */
+    .legacy-login {
+      display: none;
+    }
+
+    .legacy-login.show {
+      display: block;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 16px 0;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e6e9ef;
+    }
+
+    .divider span {
+      padding: 0 12px;
     }
   </style>
 
@@ -114,41 +164,70 @@
   <main class="container">
     <div class="login-card">
       <div class="broen-logo">BROEN-LAB</div>
-      <form id="login-form">
-        <div class="login-field">
-          <label for="username">Email</label>
-          <input 
-            id="username" 
-            name="username" 
-            type="email" 
-            placeholder="Enter your email" 
-            required 
-            autocomplete="email"
-          />
-        </div>
 
-        <div class="login-field">
-          <label for="password">Password</label>
-          <input 
-            id="password" 
-            name="password" 
-            type="password" 
-            placeholder="Enter your password" 
-            required 
-            autocomplete="current-password"
-          />
-        </div>
+      <!-- Primary: SSO Login -->
+      <div class="sso-section" id="sso-section">
+        <p>Sign in with your organization account</p>
+        <a href="/auth/login" class="btn btn-primary">Sign in with Microsoft</a>
+      </div>
 
-        <div class="login-actions">
-          <button type="submit" class="btn btn-primary">Sign in</button>
-        </div>
+      <!-- Legacy login form (hidden by default, only shown if ENABLE_LEGACY_PASSWORD_LOGIN=true) -->
+      <div class="legacy-login" id="legacy-login">
+        <div class="divider"><span>or use email</span></div>
+        <form id="login-form">
+          <div class="login-field">
+            <label for="username">Email</label>
+            <input 
+              id="username" 
+              name="username" 
+              type="email" 
+              placeholder="Enter your email" 
+              required 
+              autocomplete="email"
+            />
+          </div>
 
-        <div id="login-error" class="login-error" role="alert"></div>
-      </form>
+          <div class="login-field">
+            <label for="password">Password</label>
+            <input 
+              id="password" 
+              name="password" 
+              type="password" 
+              placeholder="Enter your password" 
+              required 
+              autocomplete="current-password"
+            />
+          </div>
+
+          <div class="login-actions">
+            <button type="submit" class="btn btn-primary">Sign in</button>
+          </div>
+
+          <div id="login-error" class="login-error" role="alert"></div>
+        </form>
+      </div>
     </div>
   </main>
 
   <script>
+    // Check if legacy login is enabled
+    (async function checkLegacyLogin() {
+      try {
+        // Try to POST to /login - if it returns 404, legacy is disabled
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: '', password: '' })
+        });
+        // If we get a response (even 401), legacy login is enabled
+        if (res.status !== 404) {
+          document.getElementById('legacy-login').classList.add('show');
+        }
+      } catch (err) {
+        // If error, assume legacy is disabled
+      }
+    })();
+
     const form = document.getElementById('login-form');
     const loginError = document.getElementById('login-error');
 
