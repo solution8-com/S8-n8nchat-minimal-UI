@@ -37,10 +37,14 @@ async function initializeApp() {
 
   app.get('/readyz', async (req, res) => {
     const redisHealthy = await checkRedisHealth();
+    const redisStatus = config.session.redisUrl 
+      ? (redisHealthy ? 'connected' : 'disconnected')
+      : 'not_configured';
+    
     if (redisHealthy) {
-      res.status(200).json({ status: 'ready', redis: 'connected' });
+      res.status(200).json({ status: 'ready', redis: redisStatus });
     } else {
-      res.status(503).json({ status: 'not ready', redis: 'disconnected' });
+      res.status(503).json({ status: 'not ready', redis: redisStatus });
     }
   });
 
