@@ -12,7 +12,7 @@ Quick start
 Important: where to edit the JavaScript
 - The chat behavior (JS) lives in the companion JavaScript repository — edit the chat.html file there.
 - Search for the exact text "create chat" inside that chat.html; that is the single line you need to change to customize behavior.
-- Companion repo (example): [solution8-com/s8-n8nchat-js](https://github.com/solution8-com/s8-n8nchat-js)
+- Companion repo: [https://github.com/solution8-com/s8-n8nchat-js](https://github.com/solution8-com/S8-Utilities)
   - In that repo, open chat.html and update the "create chat" line as needed.
 
 Why this repo exists
