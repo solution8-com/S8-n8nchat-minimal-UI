@@ -101,10 +101,45 @@ jobs:
                 n8n-password="${{ secrets.N8N_PASSWORD }}"
           else
             echo "Updating existing Container App..."
+            
+            # Update secrets
+            az containerapp secret set \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --secrets \
+                base-url="${{ secrets.BASE_URL }}" \
+                session-secret="${{ secrets.SESSION_SECRET }}" \
+                redis-url="${{ secrets.REDIS_URL }}" \
+                entra-tenant-id="${{ secrets.ENTRA_TENANT_ID }}" \
+                entra-client-id="${{ secrets.ENTRA_CLIENT_ID }}" \
+                entra-client-secret="${{ secrets.ENTRA_CLIENT_SECRET }}" \
+                entra-allowed-group-id="${{ secrets.ENTRA_ALLOWED_GROUP_ID }}" \
+                n8n-webhook-url="${{ secrets.N8N_WEBHOOK_URL }}" \
+                n8n-username="${{ secrets.N8N_USERNAME }}" \
+                n8n-password="${{ secrets.N8N_PASSWORD }}"
+            
+            # Update image and environment variables
             az containerapp update \
               --name ${{ env.CONTAINER_APP_NAME }} \
               --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --image ${{ env.IMAGE_TAG }}
+              --image ${{ env.IMAGE_TAG }} \
+              --set-env-vars \
+                NODE_ENV=production \
+                PORT=3000 \
+                BASE_URL=secretref:base-url \
+                SESSION_SECRET=secretref:session-secret \
+                SESSION_COOKIE_SECURE=true \
+                SESSION_COOKIE_SAMESITE=lax \
+                REDIS_URL=secretref:redis-url \
+                ENTRA_TENANT_ID=secretref:entra-tenant-id \
+                ENTRA_CLIENT_ID=secretref:entra-client-id \
+                ENTRA_CLIENT_SECRET=secretref:entra-client-secret \
+                ENTRA_REDIRECT_PATH=/auth/callback \
+                ENTRA_POST_LOGOUT_REDIRECT_PATH=/ \
+                ENTRA_ALLOWED_GROUP_ID=secretref:entra-allowed-group-id \
+                N8N_WEBHOOK_URL=secretref:n8n-webhook-url \
+                N8N_USERNAME=secretref:n8n-username \
+                N8N_PASSWORD=secretref:n8n-password
           fi
 
       - name: Get Container App URL
@@ -123,7 +158,7 @@ jobs:
 
       - name: Verify deployment health
         run: |
-          if [ -z "${{ env.CONTAINER_APP_FQDN }}" ]; then
+          if [ -z "$CONTAINER_APP_FQDN" ]; then
             echo "⚠️ Skipping health check - FQDN not available"
             exit 0
           fi
@@ -131,7 +166,7 @@ jobs:
           echo "Waiting for deployment to stabilize..."
           sleep 30
           
-          HEALTH_URL="https://${{ env.CONTAINER_APP_FQDN }}/healthz"
+          HEALTH_URL="https://$CONTAINER_APP_FQDN/healthz"
           echo "Checking: $HEALTH_URL"
           
           HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 || echo "000")
