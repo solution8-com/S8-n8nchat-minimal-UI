@@ -1,0 +1,179 @@
+name: Build and Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_RESOURCE_GROUP: CHABANA
+  AZURE_REGION: westeurope
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  CONTAINER_APP_NAME: broenlab-chat
+  CONTAINER_APP_ENV_NAME: broenlab-env
+  IMAGE_NAME: broenlab-chat-proxy
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          IMAGE_LATEST=${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          
+          docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+          docker push $IMAGE_TAG
+          docker push $IMAGE_LATEST
+          
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          # Check if Container App exists
+          APP_EXISTS=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "name" \
+            --output tsv 2>/dev/null || echo "")
+          
+          if [ -z "$APP_EXISTS" ]; then
+            echo "Creating new Container App..."
+            az containerapp create \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --environment ${{ env.CONTAINER_APP_ENV_NAME }} \
+              --image ${{ env.IMAGE_TAG }} \
+              --target-port 3000 \
+              --ingress external \
+              --min-replicas 1 \
+              --max-replicas 3 \
+              --cpu 0.5 \
+              --memory 1.0Gi \
+              --registry-server ${{ env.ACR_NAME }}.azurecr.io \
+              --env-vars \
+                NODE_ENV=production \
+                PORT=3000 \
+                BASE_URL=secretref:base-url \
+                SESSION_SECRET=secretref:session-secret \
+                SESSION_COOKIE_SECURE=true \
+                SESSION_COOKIE_SAMESITE=lax \
+                REDIS_URL=secretref:redis-url \
+                ENTRA_TENANT_ID=secretref:entra-tenant-id \
+                ENTRA_CLIENT_ID=secretref:entra-client-id \
+                ENTRA_CLIENT_SECRET=secretref:entra-client-secret \
+                ENTRA_REDIRECT_PATH=/auth/callback \
+                ENTRA_POST_LOGOUT_REDIRECT_PATH=/ \
+                ENTRA_ALLOWED_GROUP_ID=secretref:entra-allowed-group-id \
+                N8N_WEBHOOK_URL=secretref:n8n-webhook-url \
+                N8N_USERNAME=secretref:n8n-username \
+                N8N_PASSWORD=secretref:n8n-password \
+              --secrets \
+                base-url="${{ secrets.BASE_URL }}" \
+                session-secret="${{ secrets.SESSION_SECRET }}" \
+                redis-url="${{ secrets.REDIS_URL }}" \
+                entra-tenant-id="${{ secrets.ENTRA_TENANT_ID }}" \
+                entra-client-id="${{ secrets.ENTRA_CLIENT_ID }}" \
+                entra-client-secret="${{ secrets.ENTRA_CLIENT_SECRET }}" \
+                entra-allowed-group-id="${{ secrets.ENTRA_ALLOWED_GROUP_ID }}" \
+                n8n-webhook-url="${{ secrets.N8N_WEBHOOK_URL }}" \
+                n8n-username="${{ secrets.N8N_USERNAME }}" \
+                n8n-password="${{ secrets.N8N_PASSWORD }}"
+          else
+            echo "Updating existing Container App..."
+            
+            # Update secrets
+            az containerapp secret set \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --secrets \
+                base-url="${{ secrets.BASE_URL }}" \
+                session-secret="${{ secrets.SESSION_SECRET }}" \
+                redis-url="${{ secrets.REDIS_URL }}" \
+                entra-tenant-id="${{ secrets.ENTRA_TENANT_ID }}" \
+                entra-client-id="${{ secrets.ENTRA_CLIENT_ID }}" \
+                entra-client-secret="${{ secrets.ENTRA_CLIENT_SECRET }}" \
+                entra-allowed-group-id="${{ secrets.ENTRA_ALLOWED_GROUP_ID }}" \
+                n8n-webhook-url="${{ secrets.N8N_WEBHOOK_URL }}" \
+                n8n-username="${{ secrets.N8N_USERNAME }}" \
+                n8n-password="${{ secrets.N8N_PASSWORD }}"
+            
+            # Update image and environment variables
+            az containerapp update \
+              --name ${{ env.CONTAINER_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --image ${{ env.IMAGE_TAG }} \
+              --set-env-vars \
+                NODE_ENV=production \
+                PORT=3000 \
+                BASE_URL=secretref:base-url \
+                SESSION_SECRET=secretref:session-secret \
+                SESSION_COOKIE_SECURE=true \
+                SESSION_COOKIE_SAMESITE=lax \
+                REDIS_URL=secretref:redis-url \
+                ENTRA_TENANT_ID=secretref:entra-tenant-id \
+                ENTRA_CLIENT_ID=secretref:entra-client-id \
+                ENTRA_CLIENT_SECRET=secretref:entra-client-secret \
+                ENTRA_REDIRECT_PATH=/auth/callback \
+                ENTRA_POST_LOGOUT_REDIRECT_PATH=/ \
+                ENTRA_ALLOWED_GROUP_ID=secretref:entra-allowed-group-id \
+                N8N_WEBHOOK_URL=secretref:n8n-webhook-url \
+                N8N_USERNAME=secretref:n8n-username \
+                N8N_PASSWORD=secretref:n8n-password
+          fi
+
+      - name: Get Container App URL
+        run: |
+          FQDN=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
+          if [ -z "$FQDN" ]; then
+            echo "Warning: Could not retrieve Container App FQDN"
+            exit 0
+          fi
+          echo "Container App URL: https://$FQDN"
+          echo "CONTAINER_APP_FQDN=$FQDN" >> $GITHUB_ENV
+
+      - name: Verify deployment health
+        run: |
+          if [ -z "$CONTAINER_APP_FQDN" ]; then
+            echo "⚠️ Skipping health check - FQDN not available"
+            exit 0
+          fi
+          
+          echo "Waiting for deployment to stabilize..."
+          sleep 30
+          
+          HEALTH_URL="https://$CONTAINER_APP_FQDN/healthz"
+          echo "Checking: $HEALTH_URL"
+          
+          HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 || echo "000")
+          
+          if [ "$HEALTH_CHECK" = "200" ]; then
+            echo "✅ Health check passed!"
+          else
+            echo "⚠️ Health check returned: $HEALTH_CHECK"
+            echo "Container app may still be starting up. Check Azure Portal for details."
+          fi

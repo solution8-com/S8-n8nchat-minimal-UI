@@ -4,3 +4,26 @@ node_modules/
 npm-debug.log
 .chunkhound
 .chunkhound.json
+
+# Legacy server backup
+server.js.legacy
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+coverage/
+
+# Build artifacts
+dist/
+build/
