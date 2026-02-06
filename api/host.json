@@ -5,23 +5,3 @@
     "version": "[3.*, 4.0.0)"
   }
 }
-
-2. Update api/webhook/function.json
-
-{
-  "bindings": [
-    {
-      "authLevel": "anonymous",
-      "type": "httpTrigger",
-      "direction": "in",
-      "name": "req",
-      "methods": ["get", "post"],
-      "route": "webhook"
-    },
-    {
-      "type": "http",
-      "direction": "out",
-      "name": "$return"
-    }
-  ]
-}
