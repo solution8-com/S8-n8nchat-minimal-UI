@@ -183,7 +183,8 @@
 
       const textBlock = document.createElement('div');
       textBlock.className = 'broen-response__text';
-      const displayText = normalized.text || normalized.outputs.join('\n\n') || 'Response received.';
+      const rawText = normalized.text || normalized.outputs.join('\n\n') || 'Response received.';
+      const displayText = rawText.replace(/\/tmp\/tmp[a-z0-9]+\//gi, '');
       textBlock.innerHTML = renderMarkdown(displayText);
       wrapper.appendChild(textBlock);
 
